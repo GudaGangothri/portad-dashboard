@@ -95,6 +95,19 @@ This is a UI preview of a possible package layout, not a guarantee that the dash
 - [Compatibility Matrix](../src/app/compatibility/matrix.tsx) — Source entries, target entries, statuses, and compatibility details shown by the dashboard.
 - [Migration Wizard](../src/app/migrate/page.tsx) — Wizard steps, available choices, and the illustrative CLI workflow.
 
+## Local Dashboard Setup
+
+To run the dashboard locally, use the following commands from the repository root:
+
+```bash
+npm ci
+npm run dev
+```
+
+Then open `http://localhost:3000` in your browser.
+
+For the project overview and additional development commands, see the [Project README](../README.md) and [Contributing Guide](../CONTRIBUTING.md).
+
 ## Scope and Limitations
 
 This document describes the behavior and labels found in the dashboard source code. It does not claim that the dashboard itself implements core migration logic, that all adapters are fully functional, or that a complete migration has been tested.
