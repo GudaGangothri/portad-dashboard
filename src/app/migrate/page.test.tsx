@@ -297,6 +297,7 @@ describe("Migrate wizard", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         "Invalid file. Please choose a .zip or .portad file.",
       );
+      expect(screen.getByText("sample.zip")).toBeInTheDocument();
 
       expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
     });
