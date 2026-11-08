@@ -95,6 +95,15 @@ describe("Migrate wizard", () => {
       render(<Migrate />);
       expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
     });
+    it("shows a validation message when no source is selected", () => {
+      render(<Migrate />);
+
+      expect(
+        screen.getByText("Please select a source to continue."),
+      ).toBeInTheDocument();
+
+      expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+    });
 
     it("keeps planned sources disabled and unselectable", () => {
       render(<Migrate />);
@@ -153,6 +162,19 @@ describe("Migrate wizard", () => {
       fireEvent.click(screen.getByRole("button", { name: "Back" }));
       expect(screen.getByText("Choose a source")).toBeInTheDocument();
       expect(screen.getByText("step 1 / 4")).toBeInTheDocument();
+    });
+
+    it("shows a validation message when no target is selected", () => {
+      render(<Migrate />);
+
+      fireEvent.click(screen.getByRole("button", { name: /notion/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      expect(
+        screen.getByText("Please select a target to continue."),
+      ).toBeInTheDocument();
+
+      expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
     });
 
     it("disables Next on the Target step until a target is selected", () => {
@@ -219,10 +241,20 @@ describe("Migrate wizard", () => {
       expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     });
 
+    it("shows a validation message when no package is selected", () => {
+      advanceToStep(2);
+
+      expect(
+        screen.getByText("Please choose a .zip or .portad file to continue."),
+      ).toBeInTheDocument();
+
+      expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    });
+
     it("shows default upload prompt text", () => {
       advanceToStep(2);
       expect(
-        screen.getByText("Click to choose a .portad package"),
+        screen.getByText("Click to choose a .zip or .portad package"),
       ).toBeInTheDocument();
       expect(
         screen.getByText(/or run portad export to create one/i),
@@ -272,7 +304,15 @@ describe("Migrate wizard", () => {
         'input[type="file"]',
       ) as HTMLInputElement;
       expect(fileInput.accept).toBe(".zip,.portad");
+      const validFile = new File(["payload"], "sample.zip", {
+        type: "application/zip",
+      });
+
+      fireEvent.change(fileInput, { target: { files: [validFile] } });
+
+      expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
     });
+
     it("preserves the previous valid file when an invalid file is selected", () => {
       advanceToStep(2);
 

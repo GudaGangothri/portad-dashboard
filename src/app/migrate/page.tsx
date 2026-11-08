@@ -348,7 +348,7 @@ export default function Migrate() {
                     }}
                   />
                   <span className="text-sm font-medium text-slate-800 dark:text-frost-100">
-                    {fileName ?? "Click to choose a .portad package"}
+                    {fileName ?? "Click to choose a .zip or .portad package"}
                   </span>
                   <span className="mt-1.5 font-mono text-xs text-slate-500 dark:text-frost-500">
                     or run portad export to create one
