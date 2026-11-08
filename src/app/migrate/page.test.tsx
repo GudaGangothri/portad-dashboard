@@ -254,7 +254,7 @@ describe("Migrate wizard", () => {
     it("shows default upload prompt text", () => {
       advanceToStep(2);
       expect(
-        screen.getByText("Click to choose a .zip or .portad package"),
+        screen.getByText("Click to choose a .zip or .portad package."),
       ).toBeInTheDocument();
       expect(
         screen.getByText(/or run portad export to create one/i),
