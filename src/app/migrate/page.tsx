@@ -82,18 +82,91 @@ const TREE = [
   },
 ];
 
+const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024; // 250 MB
+const ALLOWED_EXTENSIONS = [".portad", ".zip"];
+
 export default function Migrate() {
   const reduce = useReducedMotion();
   const [step, setStep] = useState<Step>(0);
   const [source, setSource] = useState<string | null>(null);
   const [target, setTarget] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileWarning, setFileWarning] = useState<string | null>(null);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [statusAnnouncement, setStatusAnnouncement] = useState<string | null>(
+    null,
+  );
+
+  const hasActiveProgress =
+    source !== null || target !== null || selectedFile !== null || step > 0;
+
   const canAdvance =
     (step === 0 && source !== null) ||
     (step === 1 && target !== null) ||
-    (step === 2 && selectedFile !== null);
+    (step === 2 && selectedFile !== null && fileError === null);
+
+  const handleSelectSource = (id: string) => {
+    setSource(id);
+    setStatusAnnouncement(null);
+  };
+
+  const handleSelectTarget = (id: string) => {
+    setTarget(id);
+    setStatusAnnouncement(null);
+  };
+
+  const handleDiscard = () => {
+    setSource(null);
+    setTarget(null);
+    setFileName(null);
+    setSelectedFile(null);
+    setFileError(null);
+    setFileWarning(null);
+    setStep(0);
+    setShowDiscardDialog(false);
+    setStatusAnnouncement("Migration configuration discarded and reset.");
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const hasValidExt = ALLOWED_EXTENSIONS.some((ext) =>
+      lowerName.endsWith(ext),
+    );
+
+    if (!hasValidExt) {
+      setFileError(
+        "Invalid file type. Please upload a valid .portad or .zip package archive.",
+      );
+      setFileWarning(null);
+      return;
+    }
+
+    if (file.size === 0) {
+      setFileError(
+        "Selected package file is empty. Please choose a non-empty .portad or .zip archive.",
+      );
+      setFileWarning(null);
+      return;
+    }
+
+    setSelectedFile(file);
+    setFileName(file.name);
+    setFileError(null);
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setFileWarning(
+        "Large package detected (> 250 MB). Ingestion may require running via the local CLI.",
+      );
+    } else {
+      setFileWarning(null);
+    }
+  };
 
   const progress = (step / (STEP_LABELS.length - 1)) * 100;
 
@@ -201,47 +274,56 @@ export default function Migrate() {
                 <p className="mt-1 text-sm text-slate-600 dark:text-frost-500">
                   Where the workspace lives today.
                 </p>
-                {!source && (
-                  <p
-                    className="mt-2 text-sm text-amber-600 dark:text-amber-400"
-                    role="status"
-                  >
-                    Please select a source to continue.
-                  </p>
-                )}
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {SOURCES.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      disabled={!item.ready}
-                      onClick={() => {
-                        setSource(item.id);
-                        setValidationError(null);
-                      }}
-                      className={
-                        "rounded-2xl border p-4 text-left transition duration-200 disabled:cursor-not-allowed disabled:opacity-45 " +
-                        (source === item.id
-                          ? "border-brand-500 bg-brand-50/70 shadow-sm dark:border-brand-400 dark:bg-brand-500/10"
-                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/25 dark:hover:bg-white/[0.06]")
-                      }
-                    >
-                      <span className="flex items-center justify-between">
-                        <span className="font-medium text-slate-900 dark:text-frost-100">
-                          {item.name}
-                        </span>
-                        {!item.ready && (
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-transparent dark:text-frost-600">
-                            planned
+
+                <fieldset
+                  className="mt-5 border-0 p-0 m-0"
+                  aria-describedby={
+                    !source ? "source-requirement-hint" : undefined
+                  }
+                >
+                  <legend className="sr-only">Source platform choices</legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {SOURCES.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={!item.ready}
+                        onClick={() => handleSelectSource(item.id)}
+                        className={
+                          "rounded-2xl border p-4 text-left transition duration-200 disabled:cursor-not-allowed disabled:opacity-45 " +
+                          (source === item.id
+                            ? "border-brand-500 bg-brand-50/70 shadow-sm dark:border-brand-400 dark:bg-brand-500/10"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/25 dark:hover:bg-white/[0.06]")
+                        }
+                      >
+                        <span className="flex items-center justify-between">
+                          <span className="font-medium text-slate-900 dark:text-frost-100">
+                            {item.name}
                           </span>
-                        )}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-frost-500">
-                        {item.detail}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                          {!item.ready && (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-transparent dark:text-frost-600">
+                              planned
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500 dark:text-frost-500">
+                          {item.detail}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {!source ? (
+                  <p
+                    id="source-requirement-hint"
+                    role="status"
+                    className="mt-4 flex items-center gap-1.5 text-xs text-slate-500 dark:text-frost-500"
+                  >
+                    <span aria-hidden="true">ℹ</span> A source platform is
+                    required to proceed to the target step.
+                  </p>
+                ) : null}
               </div>
             )}
 
@@ -253,47 +335,58 @@ export default function Migrate() {
                 <p className="mt-1 text-sm text-slate-600 dark:text-frost-500">
                   Where the workspace should land.
                 </p>
-                {!target && (
-                  <p
-                    className="mt-2 text-sm text-amber-600 dark:text-amber-400"
-                    role="status"
-                  >
-                    Please select a target to continue.
-                  </p>
-                )}
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {TARGETS.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      disabled={!item.ready}
-                      onClick={() => {
-                        setTarget(item.id);
-                        setValidationError(null);
-                      }}
-                      className={
-                        "rounded-2xl border p-4 text-left transition duration-200 disabled:cursor-not-allowed disabled:opacity-45 " +
-                        (target === item.id
-                          ? "border-brand-500 bg-brand-50/70 shadow-sm dark:border-brand-400 dark:bg-brand-500/10"
-                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/25 dark:hover:bg-white/[0.06]")
-                      }
-                    >
-                      <span className="flex items-center justify-between">
-                        <span className="font-medium text-slate-900 dark:text-frost-100">
-                          {item.name}
-                        </span>
-                        {!item.ready && (
-                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-transparent dark:text-frost-600">
-                            planned
+
+                <fieldset
+                  className="mt-5 border-0 p-0 m-0"
+                  aria-describedby={
+                    !target ? "target-requirement-hint" : undefined
+                  }
+                >
+                  <legend className="sr-only">
+                    Destination platform choices
+                  </legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {TARGETS.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        disabled={!item.ready}
+                        onClick={() => handleSelectTarget(item.id)}
+                        className={
+                          "rounded-2xl border p-4 text-left transition duration-200 disabled:cursor-not-allowed disabled:opacity-45 " +
+                          (target === item.id
+                            ? "border-brand-500 bg-brand-50/70 shadow-sm dark:border-brand-400 dark:bg-brand-500/10"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/25 dark:hover:bg-white/[0.06]")
+                        }
+                      >
+                        <span className="flex items-center justify-between">
+                          <span className="font-medium text-slate-900 dark:text-frost-100">
+                            {item.name}
                           </span>
-                        )}
-                      </span>
-                      <span className="mt-1 block text-xs text-slate-500 dark:text-frost-500">
-                        {item.detail}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                          {!item.ready && (
+                            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-transparent dark:text-frost-600">
+                              planned
+                            </span>
+                          )}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500 dark:text-frost-500">
+                          {item.detail}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {!target ? (
+                  <p
+                    id="target-requirement-hint"
+                    role="status"
+                    className="mt-4 flex items-center gap-1.5 text-xs text-slate-500 dark:text-frost-500"
+                  >
+                    <span aria-hidden="true">ℹ</span> A destination platform is
+                    required to proceed to package upload.
+                  </p>
+                ) : null}
               </div>
             )}
 
@@ -309,43 +402,31 @@ export default function Migrate() {
                   </code>{" "}
                   package already? Attach it here — files never leave this page.
                 </p>
-                {!fileName && !validationError && (
-                  <p
-                    className="mt-2 text-sm text-amber-600 dark:text-amber-400"
-                    role="status"
-                  >
-                    Please choose a .zip or .portad file to continue.
-                  </p>
-                )}
-                <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/50 px-6 py-10 text-center transition hover:border-brand-400 hover:bg-brand-50/40 dark:border-white/20 dark:bg-transparent dark:hover:border-brand-400/60 dark:hover:bg-brand-500/5">
+                <label
+                  htmlFor="package-upload-input"
+                  className={
+                    "mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-10 text-center transition " +
+                    (fileError
+                      ? "border-red-400 bg-red-50/50 hover:border-red-500 hover:bg-red-50/70 dark:border-red-500/40 dark:bg-red-950/20 dark:hover:border-red-400/60"
+                      : "border-slate-300 bg-slate-50/50 hover:border-brand-400 hover:bg-brand-50/40 dark:border-white/20 dark:bg-transparent dark:hover:border-brand-400/60 dark:hover:bg-brand-500/5")
+                  }
+                >
                   <input
+                    id="package-upload-input"
                     type="file"
                     accept=".zip,.portad"
-                    id="package-file"
-                    aria-invalid={validationError !== null}
+                    aria-invalid={fileError !== null}
                     aria-describedby={
-                      validationError ? "package-file-error" : undefined
+                      fileError
+                        ? "file-error-msg"
+                        : fileWarning
+                          ? "file-warning-msg"
+                          : !fileName
+                            ? "file-requirement-hint"
+                            : undefined
                     }
                     className="sr-only"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-
-                      if (!file) return;
-
-                      const isValidFile = /\.(zip|portad)$/i.test(file.name);
-
-                      if (!isValidFile) {
-                        setValidationError(
-                          "Invalid file. Please choose a .zip or .portad file.",
-                        );
-                        event.target.value = "";
-                        return;
-                      }
-
-                      setSelectedFile(file);
-                      setFileName(file.name);
-                      setValidationError(null);
-                    }}
+                    onChange={handleFileChange}
                   />
                   <span className="text-sm font-medium text-slate-800 dark:text-frost-100">
                     {fileName ?? "Click to choose a .zip or .portad package."}
@@ -354,17 +435,40 @@ export default function Migrate() {
                     or run portad export to create one
                   </span>
                 </label>
-                {validationError && (
+
+                {fileError && (
                   <p
-                    id="package-file-error"
+                    id="file-error-msg"
                     role="alert"
-                    className="mt-3 text-sm font-medium text-red-600 dark:text-red-400"
+                    className="mt-3 flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400"
                   >
-                    {validationError}
+                    <span aria-hidden="true">✕</span> {fileError}
                   </p>
                 )}
+
+                {fileName === null && !fileError ? (
+                  <p
+                    id="file-requirement-hint"
+                    role="status"
+                    className="mt-3 flex items-center gap-1.5 text-xs text-slate-500 dark:text-frost-500"
+                  >
+                    <span aria-hidden="true">ℹ</span> A .portad or .zip package
+                    archive is required to advance.
+                  </p>
+                ) : null}
+
+                {fileWarning && !fileError && (
+                  <p
+                    id="file-warning-msg"
+                    role="status"
+                    className="mt-3 flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+                  >
+                    <span aria-hidden="true">⚠</span> {fileWarning}
+                  </p>
+                )}
+
                 <AnimatePresence>
-                  {fileName && (
+                  {fileName && !fileError && (
                     <motion.div
                       initial={
                         reduce ? { opacity: 0 } : { opacity: 0, height: 0 }
@@ -456,15 +560,28 @@ export default function Migrate() {
       </div>
 
       {/* Nav */}
-      <div className="mt-6 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setStep((current) => Math.max(0, current - 1) as Step)}
-          disabled={step === 0}
-          className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:bg-transparent dark:text-frost-300 dark:shadow-none dark:hover:border-white/35 dark:hover:text-white"
-        >
-          Back
-        </button>
+      <div className="mt-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setStep((current) => Math.max(0, current - 1) as Step)
+            }
+            disabled={step === 0}
+            className="rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:bg-transparent dark:text-frost-300 dark:shadow-none dark:hover:border-white/35 dark:hover:text-white"
+          >
+            Back
+          </button>
+          {hasActiveProgress && (
+            <button
+              type="button"
+              onClick={() => setShowDiscardDialog(true)}
+              className="rounded-full border border-red-200 bg-white px-3.5 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:border-red-500/30 dark:bg-transparent dark:text-red-400 dark:hover:bg-red-950/20"
+            >
+              Discard
+            </button>
+          )}
+        </div>
         <div className="font-mono text-xs text-slate-500 dark:text-frost-600">
           step {step + 1} / {STEP_LABELS.length}
         </div>
@@ -477,6 +594,54 @@ export default function Migrate() {
           {step === 2 ? "Continue" : "Next"}
         </button>
       </div>
+
+      {statusAnnouncement && (
+        <p role="status" className="sr-only">
+          {statusAnnouncement}
+        </p>
+      )}
+
+      {showDiscardDialog && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="discard-dialog-title"
+          aria-describedby="discard-dialog-description"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+        >
+          <div className="glass w-full max-w-md rounded-2xl p-6 shadow-xl dark:border-white/15 dark:bg-space-900">
+            <h3
+              id="discard-dialog-title"
+              className="text-lg font-semibold text-slate-900 dark:text-frost-50"
+            >
+              Discard migration in progress?
+            </h3>
+            <p
+              id="discard-dialog-description"
+              className="mt-2 text-sm leading-6 text-slate-600 dark:text-frost-400"
+            >
+              This will clear your selected source, destination platform, and
+              attached package. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDiscardDialog(false)}
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/15 dark:bg-transparent dark:text-frost-300 dark:hover:bg-white/[0.04]"
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscard}
+                className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600"
+              >
+                Discard and restart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

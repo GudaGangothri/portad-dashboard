@@ -116,7 +116,7 @@ test.describe("Migration wizard", () => {
     });
 
     await expect(page.locator('p[role="alert"]')).toHaveText(
-      "Invalid file. Please choose a .zip or .portad file.",
+      "✕ Invalid file type. Please upload a valid .portad or .zip package archive.",
     );
 
     await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
